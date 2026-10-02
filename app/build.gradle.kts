@@ -58,12 +58,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("androidx.datastore:datastore-preferences:1.1.3")
 
-    val cameraxVersion = "1.6.1"
+    val cameraxVersion = "1.3.4"
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
-    implementation("androidx.camera:camera-compose:$cameraxVersion")
 
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 
