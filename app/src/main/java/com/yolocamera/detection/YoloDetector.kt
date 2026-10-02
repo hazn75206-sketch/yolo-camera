@@ -18,7 +18,7 @@ class YoloDetector(context: Context, inputSize: Int, numThreads: Int) : AutoClos
     init {
         val modelBytes = context.assets.open("models/yolov8n.onnx").use { it.readBytes() }
         val opts = OrtSession.SessionOptions()
-        opts.setNumThreads(numThreads.coerceIn(1, 4))
+        opts.setIntraOpNumThreads(numThreads.coerceIn(1, 4))
         session = env.createSession(modelBytes, opts)
         inputName = session.inputNames.iterator().next()
     }
