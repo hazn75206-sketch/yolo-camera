@@ -154,49 +154,8 @@ fun CameraScreen(
     DisposableEffect(executor) {
         onDispose { executor.shutdown() }
     }
-    var previewView by remember { mutableStateOf<PreviewView?>(null) }
     val selector = if (settings.useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-
-    LaunchedEffect(previewView, selector) {
-        val pv = previewView ?: return@LaunchedEffect
-        withContext(Dispatchers.IO) {
-            val provider = try {
-                ProcessCameraProvider.getInstance(context).get()
-            } catch (_: Exception) {
-                modelError = "Kamera tidak tersedia di perangkat ini."
-                return@withContext
-            }
-            val preview = Preview.Builder().build()
-            preview.setSurfaceProvider(pv.surfaceProvider)
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                .build()
-            analysis.setAnalyzer(
-                executor,
-                YoloAnalyzer(
-                    detectorProvider = { detectorRef.value },
-                    settingsProvider = { settingsRef.value }
-                ) { dets, fw, fh, ms, d ->
-                    detections = dets
-                    frameW = fw
-                    frameH = fh
-                    inferenceMs = ms
-                    dbg = d
-                    if (d.error?.contains("closed", ignoreCase = true) == true && detectorRef.value != null) {
-                        detector = null
-                        detectorEpoch++
-                    }
-                }
-            )
-            try {
-                provider.unbindAll()
-                provider.bindToLifecycle(lifecycle, selector, preview, analysis)
-            } catch (_: Exception) {
-                modelError = "Kamera tidak tersedia di perangkat ini."
-            }
-        }
-    }
+    val lastSelector = remember { object { var value: CameraSelector? = null } }
 
     Box(
         modifier = modifier
@@ -206,9 +165,43 @@ fun CameraScreen(
     ) {
         AndroidView(
             factory = { ctx ->
-                PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }.also { previewView = it }
+                PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
             },
-            update = {},
+            update = { pv ->
+                if (lastSelector.value == selector) return@AndroidView
+                lastSelector.value = selector
+                try {
+                    val provider = ProcessCameraProvider.getInstance(context).get()
+                    val preview = Preview.Builder().build()
+                    preview.setSurfaceProvider(pv.surfaceProvider)
+                    val analysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build()
+                    analysis.setAnalyzer(
+                        executor,
+                        YoloAnalyzer(
+                            detectorProvider = { detectorRef.value },
+                            settingsProvider = { settingsRef.value }
+                        ) { dets, fw, fh, ms, d ->
+                            detections = dets
+                            frameW = fw
+                            frameH = fh
+                            inferenceMs = ms
+                            dbg = d
+                            if (d.error?.contains("closed", ignoreCase = true) == true && detectorRef.value != null) {
+                                detector = null
+                                detectorEpoch++
+                            }
+                        }
+                    )
+                    provider.unbindAll()
+                    provider.bindToLifecycle(lifecycle, selector, preview, analysis)
+                } catch (_: Exception) {
+                    lastSelector.value = null
+                    modelError = "Kamera tidak tersedia di perangkat ini."
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
 
