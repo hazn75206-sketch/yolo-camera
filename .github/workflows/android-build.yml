@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements-export.txt
       - name: Setup Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
@@ -33,7 +34,7 @@ jobs:
           yes | sdkmanager --licenses || true
       - name: Export YOLOv8n ONNX dari .pt resmi
         run: |
-          pip install -q ultralytics onnx
+          pip install -q -r requirements-export.txt
           curl -sL -o yolov8n.pt https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt
           yolo export model=yolov8n.pt format=onnx imgsz=640
           mkdir -p app/src/main/assets/models
