@@ -12,12 +12,19 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
       - name: Setup Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
@@ -26,7 +33,7 @@ jobs:
           yes | sdkmanager --licenses || true
       - name: Export YOLOv8n ONNX dari .pt resmi
         run: |
-          pip install -q ultralytics
+          pip install -q ultralytics onnx
           curl -sL -o yolov8n.pt https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt
           yolo export model=yolov8n.pt format=onnx imgsz=640
           mkdir -p app/src/main/assets/models
@@ -34,7 +41,6 @@ jobs:
           ls -lh app/src/main/assets/models/
       - name: Inspect model graph
         run: |
-          pip install -q onnx
           python3 -c "
           import onnx
           m = onnx.load('app/src/main/assets/models/yolov8n.onnx')
