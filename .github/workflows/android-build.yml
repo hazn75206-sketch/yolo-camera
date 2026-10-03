@@ -23,6 +23,15 @@ jobs:
           yes | sdkmanager --licenses || true
       - name: Download YOLOv8n ONNX model
         run: bash scripts/download-model.sh
+      - name: Inspect model graph
+        run: |
+          pip install -q onnx
+          python3 -c "
+          import onnx
+          m = onnx.load('app/src/main/assets/models/yolov8n.onnx')
+          [print('IN:', i.name, [d.dim_value for d in i.type.tensor_type.shape.dim]) for i in m.graph.input]
+          [print('OUT:', o.name, o.type.tensor_type.elem_type, [d.dim_value for d in o.type.tensor_type.shape.dim]) for o in m.graph.output]
+          "
       - name: Grant gradlew permission
         run: chmod +x gradlew
       - name: Build debug APK

@@ -3,6 +3,7 @@ package com.yolocamera.camera
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.yolocamera.detection.DetectionResult
+import com.yolocamera.detection.DetectorDebug
 import com.yolocamera.detection.YoloDetector
 import com.yolocamera.settings.AppSettings
 import com.yolocamera.utils.ImageUtils
@@ -11,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class YoloAnalyzer(
     private val detectorProvider: () -> YoloDetector?,
     private val settingsProvider: () -> AppSettings,
-    private val onResult: (List<DetectionResult>, frameW: Int, frameH: Int, inferenceMs: Long) -> Unit
+    private val onResult: (List<DetectionResult>, frameW: Int, frameH: Int, inferenceMs: Long, debug: DetectorDebug) -> Unit
 ) : ImageAnalysis.Analyzer {
     private val inferring = AtomicBoolean(false)
     private var lastRun = 0L
@@ -42,15 +43,19 @@ class YoloAnalyzer(
             image.close()
             if (bitmap == null) return
             val t0 = System.nanoTime()
+            var dbg = DetectorDebug()
             val dets = try {
-                detector.detect(bitmap, settings.confThreshold, settings.iouThreshold, settings.enabledClasses)
-            } catch (_: Exception) {
+                val r = detector.detect(bitmap, settings.confThreshold, settings.iouThreshold, settings.enabledClasses)
+                dbg = detector.lastDebug
+                r
+            } catch (e: Exception) {
+                dbg = DetectorDebug(error = (e.message ?: "inferensi gagal").take(60))
                 emptyList()
             } finally {
                 bitmap.recycle()
             }
             val ms = (System.nanoTime() - t0) / 1_000_000
-            onResult(dets, fw, fh, ms)
+            onResult(dets, fw, fh, ms, dbg)
         } finally {
             inferring.set(false)
         }

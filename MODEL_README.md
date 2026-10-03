@@ -4,8 +4,8 @@ File `app/src/main/assets/models/yolov8n.onnx` tidak di-commit ke git karena uku
 
 ## Otomatis (CI)
 `scripts/download-model.sh` dijalankan oleh GitHub Actions sebelum build.
-Sumber utama: `https://huggingface.co/Ultralytics/YOLOv8` (yolov8n.onnx).
-Mirror: `https://huggingface.co/AXERA-TECH/YOLOv8` (yolov8n_640x640.onnx).
+Sumber: `https://huggingface.co/AXERA-TECH/YOLOv8` (yolov8n_640x640.onnx, ~12MB).
+Repo `Ultralytics/YOLOv8` hanya menyediakan `.pt`, jadi tidak dipakai.
 
 ## Manual
 1. Download `yolov8n.onnx` dari salah satu link di atas.

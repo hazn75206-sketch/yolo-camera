@@ -91,6 +91,10 @@ fun SettingsScreen(
             Checkbox(settings.showCount, onCheckedChange = { onChange(settings.copy(showCount = it)) })
             Text("Jumlah objek")
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(settings.showDebugInfo, onCheckedChange = { onChange(settings.copy(showDebugInfo = it)) })
+            Text("Info debug (output + skor)")
+        }
         Text("Filter class (8 utama)", fontSize = 16.sp)
         val quickIds = listOf(0, 2, 5, 7, 15, 16, 1, 3)
         quickIds.forEach { id ->

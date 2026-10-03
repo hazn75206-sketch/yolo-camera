@@ -26,6 +26,7 @@ class SettingsStore(private val context: Context) {
         val showFps = booleanPreferencesKey("show_fps")
         val showCount = booleanPreferencesKey("show_count")
         val showLabel = booleanPreferencesKey("show_label")
+        val showDbg = booleanPreferencesKey("show_dbg")
         val thickness = floatPreferencesKey("thickness")
     }
 
@@ -46,6 +47,7 @@ class SettingsStore(private val context: Context) {
             showFps = p[Keys.showFps] ?: true,
             showCount = p[Keys.showCount] ?: true,
             showLabel = p[Keys.showLabel] ?: true,
+            showDebugInfo = p[Keys.showDbg] ?: true,
             boxThicknessDp = p[Keys.thickness] ?: 2f
         )
     }
@@ -65,6 +67,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.showFps] = next.showFps
             p[Keys.showCount] = next.showCount
             p[Keys.showLabel] = next.showLabel
+            p[Keys.showDbg] = next.showDebugInfo
             p[Keys.thickness] = next.boxThicknessDp
         }
     }

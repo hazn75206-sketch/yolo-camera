@@ -19,5 +19,6 @@ data class AppSettings(
     val showFps: Boolean = true,
     val showCount: Boolean = true,
     val showLabel: Boolean = true,
+    val showDebugInfo: Boolean = true,
     val boxThicknessDp: Float = 2f
 )

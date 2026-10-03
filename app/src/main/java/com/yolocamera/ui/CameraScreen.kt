@@ -38,6 +38,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.yolocamera.camera.YoloAnalyzer
 import com.yolocamera.detection.DetectionResult
+import com.yolocamera.detection.DetectorDebug
 import com.yolocamera.detection.YoloDetector
 import com.yolocamera.settings.AppSettings
 import com.yolocamera.settings.PerformanceMode
@@ -68,6 +69,7 @@ fun CameraScreen(
     var frameW by remember { mutableIntStateOf(0) }
     var frameH by remember { mutableIntStateOf(0) }
     var inferenceMs by remember { mutableLongStateOf(0L) }
+    var dbg by remember { mutableStateOf(DetectorDebug()) }
     var detector by remember { mutableStateOf<YoloDetector?>(null) }
     var modelError by remember { mutableStateOf<String?>(null) }
     var modelLoading by remember { mutableStateOf(settings.detectionEnabled) }
@@ -167,11 +169,12 @@ fun CameraScreen(
                     YoloAnalyzer(
                         detectorProvider = { detector },
                         settingsProvider = { settings }
-                    ) { dets, fw, fh, ms ->
+                    ) { dets, fw, fh, ms, d ->
                         detections = dets
                         frameW = fw
                         frameH = fh
                         inferenceMs = ms
+                        dbg = d
                     }
                 )
                 try {
@@ -234,13 +237,30 @@ fun CameraScreen(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
         }
+        if (settings.detectionEnabled && settings.showDebugInfo) {
+            val debugLine = buildString {
+                append("out ${dbg.outputShape}")
+                append(" max ${String.format("%.2f", dbg.maxScore)}")
+                append(" cand ${dbg.candidates}")
+                dbg.error?.let { append(" ERR $it") }
+            }
+            Text(
+                debugLine,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 56.dp, start = 16.dp, end = 16.dp)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
         modelError?.let { err ->
             Text(
                 err,
                 color = Color.White,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 64.dp, start = 16.dp, end = 16.dp)
+                    .padding(bottom = 96.dp, start = 16.dp, end = 16.dp)
                     .background(Color(0xFFB71C1C).copy(alpha = 0.9f))
                     .padding(12.dp)
             )
