@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,44 +72,53 @@ fun CameraScreen(
     var inferenceMs by remember { mutableLongStateOf(0L) }
     var dbg by remember { mutableStateOf(DetectorDebug()) }
     var detector by remember { mutableStateOf<YoloDetector?>(null) }
+    var detectorEpoch by remember { mutableIntStateOf(0) }
     var modelError by remember { mutableStateOf<String?>(null) }
     var modelLoading by remember { mutableStateOf(settings.detectionEnabled) }
     var lastInteract by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    LaunchedEffect(settings.performanceMode, settings.detectionEnabled) {
+    val settingsRef = rememberUpdatedState(settings)
+    val detectorRef = rememberUpdatedState(detector)
+
+    LaunchedEffect(settings.detectionEnabled, detectorEpoch) {
         if (!settings.detectionEnabled) {
-            withContext(Dispatchers.IO) { detector?.close() }
-            detector = null
+            detections = emptyList()
+            dbg = DetectorDebug()
+            inferenceMs = 0L
             modelLoading = false
             modelError = null
             return@LaunchedEffect
         }
-        if (detector != null) {
-            detector?.updateInputSize(settings.performanceMode.inputSize)
-            return@LaunchedEffect
-        }
+        if (detector != null) return@LaunchedEffect
         modelLoading = true
         modelError = null
         withContext(Dispatchers.IO) {
             try {
-                detector?.close()
-                detector = YoloDetector(context.applicationContext, settings.performanceMode.inputSize, settings.performanceMode.numThreads)
+                val created = YoloDetector(
+                    context.applicationContext,
+                    settings.performanceMode.inputSize,
+                    4
+                )
+                detector = created
             } catch (e: Exception) {
                 modelError = when {
                     e.message?.contains("models/yolov8n", ignoreCase = true) == true ->
                         "Model tidak ditemukan di assets/models/yolov8n.onnx. Lihat MODEL_README."
                     else -> "Model gagal dimuat: ${e.message}"
                 }
-                try { detector?.close() } catch (_: Exception) { }
                 detector = null
             }
         }
         modelLoading = false
     }
 
-    DisposableEffect(detector) {
+    LaunchedEffect(settings.detectionEnabled, settings.performanceMode) {
+        detector?.updateInputSize(settings.performanceMode.inputSize)
+    }
+
+    DisposableEffect(Unit) {
         onDispose {
-            try { detector?.close() } catch (_: Exception) { }
+            try { detectorRef.value?.close() } catch (_: Exception) { }
         }
     }
 
@@ -144,6 +154,49 @@ fun CameraScreen(
     DisposableEffect(executor) {
         onDispose { executor.shutdown() }
     }
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    val selector = if (settings.useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+
+    LaunchedEffect(previewView, selector) {
+        val pv = previewView ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val provider = try {
+                ProcessCameraProvider.getInstance(context).get()
+            } catch (_: Exception) {
+                modelError = "Kamera tidak tersedia di perangkat ini."
+                return@withContext
+            }
+            val preview = Preview.Builder().build()
+            preview.setSurfaceProvider(pv.surfaceProvider)
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                .build()
+            analysis.setAnalyzer(
+                executor,
+                YoloAnalyzer(
+                    detectorProvider = { detectorRef.value },
+                    settingsProvider = { settingsRef.value }
+                ) { dets, fw, fh, ms, d ->
+                    detections = dets
+                    frameW = fw
+                    frameH = fh
+                    inferenceMs = ms
+                    dbg = d
+                    if (d.error?.contains("closed", ignoreCase = true) == true && detectorRef.value != null) {
+                        detector = null
+                        detectorEpoch++
+                    }
+                }
+            )
+            try {
+                provider.unbindAll()
+                provider.bindToLifecycle(lifecycle, selector, preview, analysis)
+            } catch (_: Exception) {
+                modelError = "Kamera tidak tersedia di perangkat ini."
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -153,37 +206,9 @@ fun CameraScreen(
     ) {
         AndroidView(
             factory = { ctx ->
-                PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
+                PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }.also { previewView = it }
             },
-            update = { previewView ->
-                val provider = ProcessCameraProvider.getInstance(context).get()
-                val preview = Preview.Builder().build()
-                preview.setSurfaceProvider(previewView.surfaceProvider)
-                val selector = if (settings.useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                    .build()
-                analysis.setAnalyzer(
-                    executor,
-                    YoloAnalyzer(
-                        detectorProvider = { detector },
-                        settingsProvider = { settings }
-                    ) { dets, fw, fh, ms, d ->
-                        detections = dets
-                        frameW = fw
-                        frameH = fh
-                        inferenceMs = ms
-                        dbg = d
-                    }
-                )
-                try {
-                    provider.unbindAll()
-                    provider.bindToLifecycle(lifecycle, selector, preview, analysis)
-                } catch (_: Exception) {
-                    modelError = "Kamera tidak tersedia di perangkat ini."
-                }
-            },
+            update = {},
             modifier = Modifier.fillMaxSize()
         )
 
@@ -198,7 +223,6 @@ fun CameraScreen(
             onToggleDetection = {
                 poke()
                 onSettingsChange(settings.copy(detectionEnabled = !settings.detectionEnabled))
-                if (settings.detectionEnabled) detections = emptyList()
             },
             onOpenSettings = { showSettings = true },
             onSelectPerformance = { mode: PerformanceMode ->
